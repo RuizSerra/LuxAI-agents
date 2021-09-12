@@ -80,22 +80,25 @@ class DQN(nn.Module):
         return self.head(x.view(x.size(0), -1))
 
 
-resize = T.Compose([T.ToPILImage(),
-                    T.Resize(40, interpolation=Image.CUBIC),
-                    T.ToTensor()])
-
-
 class DQNAgent(BaseAgent):
 
+    resize = T.Compose([T.ToPILImage(),
+                        T.Resize(32, interpolation=Image.CUBIC),
+                        T.ToTensor()])
+
     def get_actions(self, game_state: Game) -> list:
+
         o = self.get_observation_as_tensor(game_state)
+        # Transpose it into torch order (CHW)
+        o = o.transpose((2, 0, 1))
+        o = torch.from_numpy(o)
+        # o = resize(o)  # TODO: may need this for different sized game maps
+        # Add a batch dimension (BCHW)
+        o = o.unsqueeze(0)
 
         if game_state.turn == 1:
-            print(o.shape)
+            print('Observation space shape:', o.shape)
 
-def get_screen():
+        actions = []
 
-
-    screen = torch.from_numpy(screen)
-    # Resize, and add a batch dimension (BCHW)
-    return resize(screen).unsqueeze(0)
+        return actions
