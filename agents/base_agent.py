@@ -47,11 +47,12 @@ class BaseAgent:
         """
         crs = [0,0,0]
         if cell.resource:
-            crs[list(GAME_CONSTANTS['RESOURCE_TYPES'].values()).index(cell.resource.type)] = cell.resource.amount
+            crs[list(GAME_CONSTANTS['RESOURCE_TYPES'].values()).index(cell.resource.type)] = float(cell.resource.amount)/800
+            assert float(cell.resource.amount)/800 <= 1, "Warning: Cell has more resources than 800!!"
         if include_pos:
             raise NotImplementedError()
         return np.array([*crs,
-                         cell.road])
+                         float(cell.road)/6])
 
     def get_citytile_as_vector(self, citytile: CityTile, city: City, include_pos=False):
         """
@@ -59,17 +60,37 @@ class BaseAgent:
             team
             pos.x            (if include_pos)
             pos.y            (if include_pos)
-            cooldown
-            city_id as int
+            cooldown/10
+            city_id as int   (not used for now)
             fuel
             light_upkeep
         """
+        # Using a heuristic for light upkeep:
+        #     If the city has one tile, 23/23 = 1
+        #     For two tiles, 2*(23-5*1)/2*23 = 0.78
+        #     For more tiles it gets more complicated but you get the idea
+        light_upkeep_h = float(city.light_upkeep)/(len(city.citytiles)*23)
+        assert light_upkeep_h <= 1, "Warning: Light upkeep heuristic is buggy"
+
+        # Heuristic to normalise fuel in city
+        #     The amount of fuel in a city is related to the light_upkeep
+        #     And required to survive the remaining night turns in the episode
+        #     Episodes are 360 in length (add 0.1 to avoid zero division error)
+        #     Day+night cycle is 30+10
+        #     Finally we make sure it's between 0 and 1, brute force
+        fuel_h = (float(city.fuel)/city.light_upkeep) / ((10/40)*(360.1-self.game_state.turn))
+        fuel_h = min(fuel_h, 1)
+        # if citytile.team == 1:
+        #     print(self.game_state.turn, light_upkeep_h, fuel_h)
+
         if include_pos:
             raise NotImplementedError()
-        return np.array([citytile.team,
+        return np.array([  citytile.team,
                            #citytile.pos.x, citytile.pos.y,
-                           citytile.cooldown,
-                           int(city.cityid.split('_')[-1]), city.fuel, city.light_upkeep])
+                           float(citytile.cooldown)/10,
+                           #int(city.cityid.split('_')[-1]),
+                           fuel_h,
+                           light_upkeep_h])
 
     def get_unit_as_vector(self, unit: Unit, include_pos=False):
         """
@@ -77,27 +98,32 @@ class BaseAgent:
             team
             pos.x            (if include_pos)
             pos.y            (if include_pos)
-            cooldown
-
+            unit type
+            cooldown/4
+            wood/100
+            coal/100
+            uranium/100
         """
         if include_pos:
             raise NotImplementedError()
         return np.array([unit.team,
                          # unit.pos.x, unit.pos.y,
                          unit.type,  # TODO: will need this once I incorporate carts
-                         unit.cooldown,
-                         unit.cargo.wood, unit.cargo.coal, unit.cargo.uranium])
+                         float(unit.cooldown)/4,
+                         float(unit.cargo.wood)/100,
+                         float(unit.cargo.coal)/100,
+                         float(unit.cargo.uranium)/100])
 
     def get_observation_as_tensor(self, game_state: Game):
         """Get representation of observation as HxWxC tensor
 
         Inspired by https://www.kaggle.com/aithammadiabdellatif/keras-lux-ai-reinforcement-learning
         """
-
+        self.game_state = game_state
         width, height = game_state.map_width, game_state.map_height
         # FIXME: using zeros as default value is not ideal for pos (x,y), could use (-1) or NaN?
         M = np.zeros((height, width, 4))  # cell vector depth
-        C = np.zeros((height, width, 5))  # ct vector depth
+        C = np.zeros((height, width, 4))  # ct vector depth
         U = np.zeros((height, width, 6))  # unit vector depth
 
         for y in range(height):

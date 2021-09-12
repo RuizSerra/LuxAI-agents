@@ -1,4 +1,6 @@
-
+"""
+Reinforcement Learning agents
+"""
 
 from typing import Tuple, Union, List
 
@@ -8,6 +10,9 @@ from lux.game_objects import Unit, City, CityTile
 from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
+
+import torch
+import torch.nn as nn
 
 from agents.base_agent import BaseAgent
 
