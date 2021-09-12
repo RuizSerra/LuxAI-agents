@@ -84,7 +84,7 @@ class BaseAgent:
             raise NotImplementedError()
         return np.array([unit.team,
                          # unit.pos.x, unit.pos.y,
-                         # unit.type,  # TODO: will need this once I incorporate carts
+                         unit.type,  # TODO: will need this once I incorporate carts
                          unit.cooldown,
                          unit.cargo.wood, unit.cargo.coal, unit.cargo.uranium])
 
@@ -98,7 +98,7 @@ class BaseAgent:
         # FIXME: using zeros as default value is not ideal for pos (x,y), could use (-1) or NaN?
         M = np.zeros((height, width, 4))  # cell vector depth
         C = np.zeros((height, width, 5))  # ct vector depth
-        U = np.zeros((height, width, 5))  # unit vector depth
+        U = np.zeros((height, width, 6))  # unit vector depth
 
         for y in range(height):
             for x in range(width):
