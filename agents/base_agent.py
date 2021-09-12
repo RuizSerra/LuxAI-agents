@@ -32,8 +32,10 @@ class BaseAgent:
                              }
                  }
 
-    def __init__(self, team=0):
+    def __init__(self, team=0, training_mode=False, **kwargs):
         self.team = team
+        self.training_mode = training_mode
+        self.__dict__.update(kwargs)
 
     def get_cell_as_vector(self, cell: Cell, include_pos=False):
         """
@@ -133,15 +135,21 @@ class BaseAgent:
                 # if cell.citytile:  # Could do this here but we need the city as well
                 #     C[y, x] = self.get_citytile_as_vector(cell.citytile, city???)
 
+        self.units = []
+        self.citytiles = []
+        self.cities = []
         for player in game_state.players:
             for unit in player.units:
                 x, y = unit.pos.x, unit.pos.y
                 # FIXME: if two units in the same citytile, one will overwrite the other in the observation
                 U[y, x] = self.get_unit_as_vector(unit)
+                self.units.append(unit)
             for city in player.cities.values():
                 for citytile in city.citytiles:
                     x, y = citytile.pos.x, citytile.pos.y
                     C[y, x] = self.get_citytile_as_vector(citytile, city)
+                    self.citytiles.append(citytile)
+                self.cities.append(city)
 
         return np.dstack([M,U,C])
 
@@ -289,31 +297,31 @@ class BaseAgent:
 
         return valid_dirs
 
-    def _convert_to_actions(self, action_vector: list) -> list:
+    def _convert_to_actions(self, action_vector: list, active_only=False) -> list:
         """
         https://stackoverflow.com/questions/3061/calling-a-function-of-a-module-by-using-its-name-a-string
         """
 
-        actions = []
-        # TODO: vectorise this operation for speed
-        # Get actual actions from encoded actions
-        for i, unit in enumerate(self._active_units):
-            if action_vector[i]:  # i.e. if the action chosen is not "DO_NOTHING"
-                s = self.ACTION_MAP['unit'][action_vector[i]].split()
-                if len(s) > 1:
-                    action = getattr(unit, s[0])(*s[1:])
-                else:
-                    action = getattr(unit, s[0])()
-                actions.append(action)
+        units = self._active_units if active_only else [u for u in self.units if u.team == self.team]
+        citytiles = [c[0] for c in self._active_citytiles] if active_only \
+                        else [c for c in self.citytiles if c.team == self.team]
 
-        for j, cc in enumerate(self._active_citytiles, start=len(self._active_units)):
-            citytile = cc[1]  # city = cc[0]
-            if action_vector[j]:  # i.e. if the action chosen is not "DO_NOTHING"
-                s = self.ACTION_MAP['citytile'][action_vector[j]].split()
-                if len(s) > 1:
-                    action = getattr(citytile, s[0])(*s[1:])
-                else:
-                    action = getattr(citytile, s[0])()
-                actions.append(action)
+        all_actors = units + citytiles
+
+        actions = []
+        for a in action_vector:
+            try:
+                actor = all_actors.pop(0)
+            except IndexError:
+                # print('Action/actors mismatch')
+                break
+            s = self.ACTION_MAP[actor.__class__.__name__.lower()][a-1].split()
+            if s[0] == 'DO_NOTHING':
+                continue
+            elif len(s) > 1:
+                action = getattr(actor, s[0])(*s[1:])
+            else:
+                action = getattr(actor, s[0])()
+            actions.append(action)
 
         return actions
