@@ -108,14 +108,14 @@ class DQNAgent(BaseAgent):
         self.target_net = DQN(screen_height, screen_width, screen_channels, self.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
-        self.policy_net.eval()  # ADDED THIS, MAYBE IT'S BAD
+        # self.policy_net.eval()  # This was not on original tutorial
 
         self.optimizer = optim.RMSprop(self.policy_net.parameters())
         self.memory = ReplayMemory(10000)
 
         self.steps_done = 0
 
-        print('Observation space shape:', self.last_obs.shape)
+        # print('Observation space shape:', self.last_obs.shape)
 
 
     def get_observation_as_tensor(self, game_state: Game):
@@ -152,6 +152,7 @@ class DQNAgent(BaseAgent):
             action = torch.tensor([[random.randrange(self.n_actions)]], device=self.device, dtype=torch.long)
 
         # Convert actions for interface ------------------------------
+        # TODO: actions for all actors
         my_units = [u for u in self.units if u.team == self.team]
         my_citytiles = [u for u in self.units if u.team == self.team]
         action_vector = [action.item()]*len(my_units)  # all units do the same for now
@@ -160,7 +161,7 @@ class DQNAgent(BaseAgent):
 
         if self.training_mode:
             # TODO: could be that the Agent only outputs action_vector, and conversion is done outside the agent?
-            return actions, action_vector
+            return actions[:1], action
 
         return actions
 
@@ -173,10 +174,6 @@ class DQNAgent(BaseAgent):
         # to Transition of batch-arrays.
         batch = Transition(*zip(*transitions))
 
-        # TODO
-        # if any([lambda s: s is None for s in batch.state]):
-        #     print("BATCH ISSUE")
-
         # Compute a mask of non-final states and concatenate the batch elements
         # (a final state would've been the one after which simulation ended)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
@@ -184,13 +181,16 @@ class DQNAgent(BaseAgent):
         non_final_next_states = torch.cat([s for s in batch.next_state
                                                     if s is not None])
         state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
+        action_batch = torch.cat(batch.action).type(torch.int64)
         reward_batch = torch.cat(batch.reward)
 
         # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
         # columns of actions taken. These are the actions which would've been taken
         # for each batch state according to self.policy_net
         state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+
+        if state_action_values.shape[0] != self.BATCH_SIZE:
+            return
 
         # Compute V(s_{t+1}) for all next states.
         # Expected values of actions for non_final_next_states are computed based
