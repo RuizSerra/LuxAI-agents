@@ -11,6 +11,8 @@ from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
 
+from agents.utils import helpers
+
 import numpy as np
 
 class BaseAgent:
@@ -217,7 +219,7 @@ class BaseAgent:
         v_citytiles = np.array(v_citytiles, dtype=np.int16)
 
         # Resources relative to this player (based on what's researched, what's nearest to units)
-        researched_resources = get_researched_mask(player.research_points)
+        researched_resources = helpers.get_researched_mask(player.research_points)
         v_r = []
         for r in game_state.map.map:
             for cell in r:
@@ -237,7 +239,7 @@ class BaseAgent:
         # Check that units are still alive, otherwise no need to sort resources
         # TODO: (although citytiles could still make more units later on)
         if not v_units.shape == (0,):
-            distances, v_resources = rank_resources(v_resources, v_units, top_k=10)
+            distances, v_resources = helpers.rank_resources(v_resources, v_units, top_k=10)
             # TODO: not using distances further for now (only for ranking resources)
 
         return v_research, v_units, v_citytiles, v_resources
@@ -303,8 +305,8 @@ class BaseAgent:
         """
 
         units = self._active_units if active_only else [u for u in self.units if u.team == self.team]
-        citytiles = [c[0] for c in self._active_citytiles] if active_only \
-                        else [c for c in self.citytiles if c.team == self.team]
+        citytiles = [c[1] for c in self._active_citytiles] if active_only \
+                     else [c for c in self.citytiles if c.team == self.team]
 
         all_actors = units + citytiles
 
@@ -315,7 +317,7 @@ class BaseAgent:
             except IndexError:
                 # print('Action/actors mismatch')
                 break
-            s = self.ACTION_MAP[actor.__class__.__name__.lower()][a-1].split()
+            s = self.ACTION_MAP[actor.__class__.__name__.lower()][a].split()
             if s[0] == 'DO_NOTHING':
                 continue
             elif len(s) > 1:
